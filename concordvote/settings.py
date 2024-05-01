@@ -14,6 +14,8 @@ load_dotenv()
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -32,6 +34,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'adminvote',
+    'candidatevote',
 ]
 
 MIDDLEWARE = [
