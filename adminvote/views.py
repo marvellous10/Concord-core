@@ -137,7 +137,7 @@ class Overview(APIView):
         admin_collection = database['AdminUsers']
         admin_user = admin_collection.find_one(
             {
-                'phone_number': '08051390089'
+                'phone_number': phone_number
             }
         )
         #voting_detail = {}
