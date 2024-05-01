@@ -167,12 +167,10 @@ class Overview(APIView):
             voters_count = 0
             position_winners = []
             positions = []               
-            voters_max = len(admin_positions[0]['candidates'][0]['voters'])
+            #voters_max = len(admin_positions[0]['candidates'][0]['voters'])
             for voters in range(len(admin_positions[0]['candidates'])):
                 voters_count += len(admin_positions[0]['candidates'][voters]['voters'])
-            if voters_count < 1:
-                voters_count = '0'
-            
+            total_voter_count = f"{voters_count}"
             for voters in range(len(admin_positions)):
                 result_dict = {
                     "name": "",
@@ -187,18 +185,24 @@ class Overview(APIView):
                 position_dict['name'] = admin_positions[voters]['name']
                 positions.append(position_dict)
                 for votes in range(len(admin_positions[voters]['candidates'])):
+                    voters_max = len(admin_positions[voters]['candidates'][0]['voters'])
                     if voters_max < len(admin_positions[voters]['candidates'][votes]['voters']):
                         result_dict['name'] = admin_positions[voters]['candidates'][votes]['name']
                         result_dict['id'] = admin_positions[voters]['candidates'][votes]['id']
                         result_dict['voters_number'] = len(admin_positions[voters]['candidates'][votes]['voters'])
+                    elif voters_max > len(admin_positions[voters]['candidates'][votes]['voters']):
+                        result_dict['name'] = admin_positions[voters]['candidates'][0]['name']
+                        result_dict['id'] = admin_positions[voters]['candidates'][0]['id']
+                        result_dict['voters_number'] = len(admin_positions[voters]['candidates'][0]['voters'])
                 position_winners.append(result_dict)
+            print(position_winners)
             return Response(
                 {
                     "status": "Passed",
                     "session_name": session_name,
                     "voting_code": admin_voting_code,
                     "position_count": str(admin_positions_length),
-                    "voters_count": str(voters_count),
+                    "voters_count": total_voter_count,
                     "positions": positions,
                     "position_winners": position_winners
                 },

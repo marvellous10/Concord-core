@@ -19,7 +19,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['concord-vote.onrender.com']
+ALLOWED_HOSTS = [os.getenv('ALLOWED_HOST'), '127.0.0.1']
 
 
 # Application definition
