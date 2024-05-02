@@ -79,6 +79,7 @@ class CandidateVote(APIView):
                         status=status.HTTP_405_METHOD_NOT_ALLOWED
                     )
                 positions = admin_user['voting_code'][code_index]['positions']
+                voted = False
                 for position in range(len(positions)):
                     candidate_id = selected_data[position]
                     # Find the candidate index based on the candidate ID
@@ -88,18 +89,20 @@ class CandidateVote(APIView):
                     if candidate_index is not None:
                         if phone_number not in voting_code_list[code_index]['candidates_voted']:
                             update_path = f"voting_code.{code_index}.positions.{position}.candidates.{candidate_index}.voters"
-                            voting_code_path = f"voting_code.{code_index}.candidates_voted"
                             # Update the document
                             admin_collection.update_one(
                                 {'phone_number': admin_user_phone_number},
                                 {'$push': {update_path: phone_number}},
                                 upsert=False
                             )
-                            admin_collection.update_one(
-                                {'phone_number':  admin_user_phone_number},
-                                {'$push': {voting_code_path: phone_number}},
-                                upsert=False
-                            )
+                            voted=True
+                voting_code_path = f"voting_code.{code_index}.candidates_voted"
+                if voted == True:    
+                    admin_collection.update_one(
+                        {'phone_number':  admin_user_phone_number},
+                        {'$push': {voting_code_path: phone_number}},
+                        upsert=False
+                    )
                 return Response(
                     {
                         'status': 'Passed',

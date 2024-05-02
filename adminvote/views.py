@@ -49,7 +49,7 @@ class AddPosition(APIView):
         )
         if admin_user:
             #mock data:
-            voting_code = [
+            '''voting_code = [
                 {
                     "code": "abcd",
                     "session_name": "test session",
@@ -91,6 +91,7 @@ class AddPosition(APIView):
                     ]
                 }
             ]
+            '''
             admin_collection.update_one(
                 {
                     'phone_number': phone_number
@@ -184,9 +185,10 @@ class Overview(APIView):
                 position_dict['id'] = admin_positions[voters]['id']
                 position_dict['name'] = admin_positions[voters]['name']
                 positions.append(position_dict)
+                voters_max = len(admin_positions[voters]['candidates'][0]['voters'])
                 for votes in range(len(admin_positions[voters]['candidates'])):
-                    voters_max = len(admin_positions[voters]['candidates'][0]['voters'])
                     if voters_max < len(admin_positions[voters]['candidates'][votes]['voters']):
+                        voters_max = len(admin_positions[voters]['candidates'][votes]['voters'])
                         result_dict['name'] = admin_positions[voters]['candidates'][votes]['name']
                         result_dict['id'] = admin_positions[voters]['candidates'][votes]['id']
                         result_dict['voters_number'] = len(admin_positions[voters]['candidates'][votes]['voters'])
