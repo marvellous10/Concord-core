@@ -116,7 +116,27 @@ class AddPosition(APIView):
                 },
                 status=status.HTTP_404_NOT_FOUND
             )
-            
+    
+def RecursiveMax(new_array:list, sorted_array:list):
+    index = 0
+    dict_element = {}
+    if len(new_array) == 0:
+        return sorted_array
+    
+    max_voter_count = new_array[0]['voters_number']
+        
+    for values in range(len(new_array)):
+        if max_voter_count < new_array[values]['voters_number']:
+            max_voter_count = new_array[values]['voters_number']
+            index = values
+        else:
+            continue
+    dict_element = new_array[index]
+        
+    sorted_array.append(dict_element)
+    new_array.pop(index)
+    new_list = new_array
+    return RecursiveMax(new_list, sorted_array)       
 class Overview(APIView):
     def post(self, request, format=None, *args, **kwargs):
         voting_code = request.data.get('voting_code')
@@ -167,17 +187,13 @@ class Overview(APIView):
             admin_positions_length = len(admin_positions)
             voters_count = 0
             position_winners = []
+            position_winners_list = []
             positions = []               
             #voters_max = len(admin_positions[0]['candidates'][0]['voters'])
             for voters in range(len(admin_positions[0]['candidates'])):
                 voters_count += len(admin_positions[0]['candidates'][voters]['voters'])
             total_voter_count = f"{voters_count}"
             for voters in range(len(admin_positions)):
-                result_dict = {
-                    "name": "",
-                    "id": "",
-                    "voters_number": ""
-                }
                 position_dict = {
                     "id": "",
                     "name": ""
@@ -186,18 +202,22 @@ class Overview(APIView):
                 position_dict['name'] = admin_positions[voters]['name']
                 positions.append(position_dict)
                 voters_max = len(admin_positions[voters]['candidates'][0]['voters'])
+                new_list = []
                 for votes in range(len(admin_positions[voters]['candidates'])):
-                    if voters_max < len(admin_positions[voters]['candidates'][votes]['voters']):
-                        voters_max = len(admin_positions[voters]['candidates'][votes]['voters'])
-                        result_dict['name'] = admin_positions[voters]['candidates'][votes]['name']
-                        result_dict['id'] = admin_positions[voters]['candidates'][votes]['id']
-                        result_dict['voters_number'] = len(admin_positions[voters]['candidates'][votes]['voters'])
-                    elif voters_max > len(admin_positions[voters]['candidates'][votes]['voters']):
-                        result_dict['name'] = admin_positions[voters]['candidates'][0]['name']
-                        result_dict['id'] = admin_positions[voters]['candidates'][0]['id']
-                        result_dict['voters_number'] = len(admin_positions[voters]['candidates'][0]['voters'])
-                position_winners.append(result_dict)
-            print(position_winners)
+                    result_dict = {
+                        "name": "",
+                        "id": "",
+                        "voters_number": ""
+                    }
+                    result_dict['name'] = admin_positions[voters]['candidates'][votes]['name']
+                    result_dict['id'] = admin_positions[voters]['candidates'][votes]['id']
+                    result_dict['voters_number'] = len(admin_positions[voters]['candidates'][votes]['voters'])
+                    new_list.append(result_dict)
+                position_winners.append(new_list)
+            for val in range(len(admin_positions)):
+                sorted_array = [] * len(admin_positions[val]['candidates'])
+                RecursiveMax(position_winners[val], sorted_array)
+                position_winners_list.append(sorted_array)
             return Response(
                 {
                     "status": "Passed",
@@ -206,7 +226,7 @@ class Overview(APIView):
                     "position_count": str(admin_positions_length),
                     "voters_count": total_voter_count,
                     "positions": positions,
-                    "position_winners": position_winners
+                    "position_winners": position_winners_list
                 },
                 status=status.HTTP_200_OK
             )  
