@@ -53,6 +53,7 @@ class AddPosition(APIView):
                 {
                     "code": "abcd",
                     "session_name": "test session",
+                    "open_session": False,
                     "allowed_phone_numbers": ['08051390081', '07049195356'],
                     "candidates_voted": [],
                     "positions": [
@@ -105,13 +106,14 @@ class AddPosition(APIView):
             return Response(
                 {
                     'status': 'Passed',
-                    'message': 'Successfully added voting code'
+                    'message': 'Successfully added voting data'
                 },
                 status=status.HTTP_201_CREATED
             )
         else:
             return Response(
                 {
+                    'status': 'Failed',
                     'message': 'User does not exist'
                 },
                 status=status.HTTP_404_NOT_FOUND
@@ -188,7 +190,8 @@ class Overview(APIView):
             voters_count = 0
             position_winners = []
             position_winners_list = []
-            positions = []               
+            positions = []
+            open_session = admin_user_voting_code[code_index]['open_session']             
             #voters_max = len(admin_positions[0]['candidates'][0]['voters'])
             for voters in range(len(admin_positions[0]['candidates'])):
                 voters_count += len(admin_positions[0]['candidates'][voters]['voters'])
@@ -223,6 +226,7 @@ class Overview(APIView):
                     "status": "Passed",
                     "session_name": session_name,
                     "voting_code": admin_voting_code,
+                    "open_session": open_session,
                     "position_count": str(admin_positions_length),
                     "voters_count": total_voter_count,
                     "positions": positions,
