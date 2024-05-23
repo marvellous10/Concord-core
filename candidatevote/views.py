@@ -9,21 +9,6 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 
 
-'''
-selected_data = [] contains list of ids in Position[candidates]
-phone_number = 08051390081
-run a for loop for all positions and in each position for all candidates looking for selected_data
-something like this: 
-for value in range(positions):
-    for val in range(postions[candidates]):
-        if selected_data[value] == positions[candidates][id]:
-            positions[candidates][id][voters].append(phone_number)
-            break
-
-After this it is saved to the adminuser voting_codes model
-'''
-
-
 class CandidateVote(APIView):
     def post(self, request, format=None, *args, **kwargs):
         load_dotenv()
@@ -43,15 +28,24 @@ class CandidateVote(APIView):
                 },
                 status=status.HTTP_406_NOT_ACCEPTABLE
             )
-        host = os.getenv('DATABASE_URI')
-        client = MongoClient(host=host, port=27017)
-        database = client['voting-system']
-        candidate_collection = database['CandidateUsers']
-        candidate_user = candidate_collection.find_one(
-            {
-                'phone_number': phone_number
-            }
-        )
+        try:
+            host = os.getenv('DATABASE_URI')
+            client = MongoClient(host=host, port=27017)
+            database = client['voting-system']
+            candidate_collection = database['CandidateUsers']
+            candidate_user = candidate_collection.find_one(
+                {
+                    'phone_number': phone_number
+                }
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'status': 'Failed',
+                    'message': 'An error occurred, try again later'
+                },
+                status=status.HTTP_408_REQUEST_TIMEOUT
+            )
         if candidate_user:
             admin_collection = database['AdminUsers']
             admin_user = admin_collection.find_one(
@@ -69,12 +63,34 @@ class CandidateVote(APIView):
                         code_index = codes
                         break
                 if code_for_voting != voting_code:
-                    raise Exception('Wrong voting code')
+                    return Response(
+                        {
+                            'status': 'Failed',
+                            'message': 'Code does not exist'
+                        },
+                        status=status.HTTP_404_NOT_FOUND
+                    )
                 if phone_number not in voting_code_list[code_index]['allowed_phone_numbers']:
-                    raise Response(
+                    return Response(
                         {
                             'status': 'Failed',
                             'message': 'You are not allowed to vote'
+                        },
+                        status=status.HTTP_405_METHOD_NOT_ALLOWED
+                    )
+                if phone_number in voting_code_list[code_index]['candidates_voted']:
+                    return Response(
+                        {
+                            'status': 'Failed',
+                            'message': 'You have already voted'
+                        },
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                if voting_code_list[code_index]['open_session'] == False:
+                    return Response(
+                        {
+                            'status': 'Failed',
+                            'message': 'Voting session is closed right now'
                         },
                         status=status.HTTP_405_METHOD_NOT_ALLOWED
                     )

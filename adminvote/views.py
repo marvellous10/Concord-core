@@ -48,51 +48,6 @@ class AddPosition(APIView):
             }
         )
         if admin_user:
-            #mock data:
-            '''voting_code = [
-                {
-                    "code": "abcd",
-                    "session_name": "test session",
-                    "open_session": False,
-                    "allowed_phone_numbers": ['08051390081', '07049195356'],
-                    "candidates_voted": [],
-                    "positions": [
-                        {
-                            "id": "werer",
-                            "name": "president test",
-                            "candidates": [
-                                {
-                                    "id": "1",
-                                    "name": "testcan 1",
-                                    "voters": []
-                                },
-                                {
-                                    "id": "2",
-                                    "name": "testcan 2",
-                                    "voters": []
-                                }
-                            ]
-                        },
-                        {
-                            "id": "wer12",
-                            "name": "vice president test",
-                            "candidates": [
-                                {
-                                    "id": "1",
-                                    "name": "testcan 1",
-                                    "voters": []
-                                },
-                                {
-                                    "id": "2",
-                                    "name": "testcan 2",
-                                    "voters": []
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
-            '''
             admin_collection.update_one(
                 {
                     'phone_number': phone_number
@@ -139,6 +94,10 @@ def RecursiveMax(new_array:list, sorted_array:list):
     new_array.pop(index)
     new_list = new_array
     return RecursiveMax(new_list, sorted_array)       
+
+def checkOpenSession(first_list:list, second_list:list):
+    if len(first_list) == len(second_list):
+        return False
 class Overview(APIView):
     def post(self, request, format=None, *args, **kwargs):
         voting_code = request.data.get('voting_code')
@@ -191,7 +150,18 @@ class Overview(APIView):
             position_winners = []
             position_winners_list = []
             positions = []
-            open_session = admin_user_voting_code[code_index]['open_session']             
+            if checkOpenSession(admin_user_voting_code[code_index]['allowed_phone_numbers'], admin_user_voting_code[code_index]['candidates_voted']) == False:
+                admin_collection.update_one(
+                    {
+                        'phone_number': phone_number
+                    },
+                    {
+                        '$set': {
+                            'open_session': False
+                        }
+                    }
+                )
+            open_session = admin_user_voting_code[code_index]['open_session']
             #voters_max = len(admin_positions[0]['candidates'][0]['voters'])
             for voters in range(len(admin_positions[0]['candidates'])):
                 voters_count += len(admin_positions[0]['candidates'][voters]['voters'])
