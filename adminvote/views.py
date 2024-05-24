@@ -290,7 +290,7 @@ class ChangeSessionStatus(APIView):
                    return Response(
                         {
                             'status': 'Passed',
-                            'message': 'Session is now open'
+                            'message': 'Session is now closed'
                         },
                         status=status.HTTP_202_ACCEPTED
                     ) 
