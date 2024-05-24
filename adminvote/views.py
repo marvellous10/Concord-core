@@ -111,7 +111,8 @@ class Overview(APIView):
                 {
                     'status': 'Failed',
                     'message': 'You are not allowed to access this code'
-                }
+                },
+                status=status.HTTP_405_METHOD_NOT_ALLOWED
             )
         host = os.getenv('DATABASE_URI')
         client = MongoClient(host=host, port=27017)
@@ -151,15 +152,17 @@ class Overview(APIView):
             position_winners_list = []
             positions = []
             if checkOpenSession(admin_user_voting_code[code_index]['allowed_phone_numbers'], admin_user_voting_code[code_index]['candidates_voted']) == False:
+                update_path = f"voting_code.{code_index}.open_session"
                 admin_collection.update_one(
                     {
                         'phone_number': phone_number
                     },
                     {
                         '$set': {
-                            'open_session': False
+                            update_path: False
                         }
-                    }
+                    },
+                    upsert = False
                 )
             open_session = admin_user_voting_code[code_index]['open_session']
             #voters_max = len(admin_positions[0]['candidates'][0]['voters'])
@@ -212,4 +215,99 @@ class Overview(APIView):
             status=status.HTTP_406_NOT_ACCEPTABLE
         )  
         
+class ChangeSessionStatus(APIView):
+    def post(self, request, format=None, *args, **kwargs):
+        access_token = request.data.get('access_token')
+        status_data = request.data.get('status')
+        voting_code = request.data.get('voting_code')
         
+        load_dotenv()
+        decoded_token = jwt.decode(access_token, os.getenv('JWT_ENCODING_KEY'), algorithms=['HS256'])
+        phone_number = decoded_token['message_info']['phone_number']
+        admin_access = decoded_token['message_info']['admin']
+        
+        if admin_access != True:
+            return Response(
+                {
+                    'status': 'Failed',
+                    'message': 'You are not allowed to change the status'
+                },
+                status=status.HTTP_405_METHOD_NOT_ALLOWED
+            )
+        try:
+            host = os.getenv('DATABASE_URI')
+            client = MongoClient(host=host, port=27017)
+            database = client['voting-system']
+            admin_collection = database['AdminUsers']
+            admin_user = admin_collection.find_one(
+                {
+                    'phone_number': phone_number
+                }
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'status': 'Failed',
+                    'message': 'An error occurred please try again'
+                },
+                status=status.HTTP_408_REQUEST_TIMEOUT
+            )
+        
+        code_index = 0
+        if admin_user:
+            code = ''
+            for details in range(len(admin_user['voting_code'])):
+                code = admin_user['voting_code'][details]['code']
+                if voting_code == code:
+                    code_index = details
+                    break
+                else: continue
+            if code != voting_code:
+                return Response(
+                    {
+                        'status': 'Failed',
+                        'message': 'The code does not exist'
+                    },
+                    status=status.HTTP_406_NOT_ACCEPTABLE
+                )
+            
+            update_path = f"voting_code.{code_index}.open_session"
+            try:
+                admin_collection.update_one(
+                    {'phone_number': phone_number},
+                    {'$set': {update_path: status_data}},
+                    upsert=False
+                )
+                if status_data == True:
+                    return Response(
+                        {
+                            'status': 'Passed',
+                            'message': 'Session is now open'
+                        },
+                        status=status.HTTP_202_ACCEPTED
+                    )
+                else:
+                   return Response(
+                        {
+                            'status': 'Passed',
+                            'message': 'Session is now closed'
+                        },
+                        status=status.HTTP_202_ACCEPTED
+                    ) 
+            except Exception as e:
+                return Response(
+                    {
+                        'status': 'Failed',
+                        'message': 'An error occured, please try again'
+                    },
+                    status=status.HTTP_409_CONFLICT
+                )
+        else:
+            return Response(
+                {
+                    'status': 'Failed',
+                    'message': 'User does not exist'
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+            
