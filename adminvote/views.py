@@ -59,7 +59,7 @@ class AddPosition(APIView):
         if admin_user:
             voting_session_detail_input = {
                 "session_name": votingdata["session_name"],
-                "voting_code": votingdata["voting_code"],
+                "voting_code": votingdata["code"],
                 "open_session": votingdata["open_session"],
                 "allowed_phone_numbers": votingdata["allowed_phone_numbers"],
                 "candidates_voted": votingdata["candidates_voted"],
