@@ -38,33 +38,61 @@ class AddPosition(APIView):
                 status=status.HTTP_405_METHOD_NOT_ALLOWED
             )
             
-        host = os.getenv('DATABASE_URI')
-        client = MongoClient(host=host, port=27017)
-        database = client['voting-system']
-        admin_collection = database['AdminUsers']
-        admin_user = admin_collection.find_one(
-            {
-                'phone_number': phone_number
-            }
-        )
-        if admin_user:
-            admin_collection.update_one(
+        try:
+            host = os.getenv('DATABASE_URI')
+            client = MongoClient(host=host, port=27017)
+            database = client['voting-system']
+            admin_collection = database['AdminUsers']
+            admin_user = admin_collection.find_one(
                 {
                     'phone_number': phone_number
-                },
-                {
-                    '$push': {
-                        'voting_code': votingdata
-                    }
                 }
             )
+        except Exception as e:
             return Response(
                 {
-                    'status': 'Passed',
-                    'message': 'Successfully added voting data'
+                    'status': 'Failed',
+                    'message': 'An error occurred'
                 },
-                status=status.HTTP_201_CREATED
+                status=status.HTTP_408_REQUEST_TIMEOUT
             )
+        if admin_user:
+            voting_session_detail_input = {
+                "session_name": votingdata["session_name"],
+                "voting_code": votingdata["voting_code"],
+                "open_session": votingdata["open_session"],
+                "allowed_phone_numbers": votingdata["allowed_phone_numbers"],
+                "candidates_voted": votingdata["candidates_voted"],
+                "positions": votingdata["positions"]
+            }
+            voting_session_serializer = VotingDBSerializer(data=voting_session_detail_input)
+            if voting_session_serializer.is_valid(raise_exception=True):
+                voting_session_serializer.save()
+                return Response(
+                    {
+                        'status': 'Passed',
+                        'message': 'Successfully added voting data'
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+            else:
+                return Response(
+                    {
+                        'status': 'Failed',
+                        'message': 'An error occured, check sent data'
+                    },
+                    status=status.HTTP_409_CONFLICT
+                )
+                '''admin_collection.update_one(
+                    {
+                        'phone_number': phone_number
+                    },
+                    {
+                        '$push': {
+                            'voting_code': votingdata
+                        }
+                    }
+                )'''
         else:
             return Response(
                 {
@@ -98,6 +126,27 @@ def RecursiveMax(new_array:list, sorted_array:list):
 def checkOpenSession(first_list:list, second_list:list):
     if len(first_list) == len(second_list):
         return False
+    
+class TestDB(APIView):
+    def post(self, request, format=None, *args, **kwargs):
+        voting_code = request.data.get('voting_code')
+        #access_token = request.data.get('access_token')
+        
+        load_dotenv()
+        
+        voting_session_details = VotingDB.objects.filter(voting_code=voting_code).first()
+        
+        if voting_session_details:
+            voting_session_serializer = VotingDBSerializer(voting_session_details)
+            
+            return Response(
+                {
+                    'message': voting_session_serializer.data
+                }
+            )
+        return Response(
+            'Not found'
+        )
 class Overview(APIView):
     def post(self, request, format=None, *args, **kwargs):
         voting_code = request.data.get('voting_code')
@@ -114,46 +163,54 @@ class Overview(APIView):
                 },
                 status=status.HTTP_405_METHOD_NOT_ALLOWED
             )
-        host = os.getenv('DATABASE_URI')
-        client = MongoClient(host=host, port=27017)
-        database = client['voting-system']
-        admin_collection = database['AdminUsers']
-        admin_user = admin_collection.find_one(
-            {
-                'phone_number': phone_number
-            }
-        )
+        try:
+            host = os.getenv('DATABASE_URI')
+            client = MongoClient(host=host, port=27017)
+            database = client['voting-system']
+            admin_collection = database['AdminUsers']
+            admin_user = admin_collection.find_one(
+                {
+                    'phone_number': phone_number
+                }
+            )
+        except Exception as e:
+            return Response(
+                {
+                    'status': 'Failed',
+                    'message': 'An error occurred, please try again'
+                },
+                status=status.HTTP_408_REQUEST_TIMEOUT
+            )
         #voting_detail = {}
         code_index = 0
         if admin_user:
-            code = ''
-            for det in range(len(admin_user['voting_code'])):
-                code = admin_user['voting_code'][det]['code']
-                if voting_code == admin_user['voting_code'][det]['code']:
-                    code = voting_code
-                    code_index = det
-                    break
-                else: continue
-            if code != voting_code:
+            voting_session_details = VotingDB.objects.filter(voting_code=voting_code).first()
+            if voting_session_details:
+                voting_details_serializer = VotingDBSerializer(voting_session_details)
+                voting_details = voting_details_serializer.data
+            else:
                 return Response(
                     {
                         'status': 'Failed',
-                        'message': 'The code does not exist'
+                        'message': 'The voting code was not found'
                     },
-                    status=status.HTTP_406_NOT_ACCEPTABLE
+                    status=status.HTTP_404_NOT_FOUND
                 )
-            admin_user_voting_code = admin_user['voting_code']
-            session_name = admin_user_voting_code[code_index]['session_name']
-            admin_voting_code = admin_user_voting_code[code_index]['code']
-            admin_positions = admin_user_voting_code[code_index]['positions']
+
+            admin_user_voting_code = voting_details['voting_code']
+            session_name = voting_details['session_name']
+            admin_voting_code = voting_details['voting_code']
+            admin_positions = voting_details['positions']
             admin_positions_length = len(admin_positions)
             voters_count = 0
             position_winners = []
             position_winners_list = []
             positions = []
-            if checkOpenSession(admin_user_voting_code[code_index]['allowed_phone_numbers'], admin_user_voting_code[code_index]['candidates_voted']) == False:
+            if checkOpenSession(voting_details['allowed_phone_numbers'], voting_details['candidates_voted']) == False:
                 update_path = f"voting_code.{code_index}.open_session"
-                admin_collection.update_one(
+                voting_session_details.open_session = False
+                voting_session_details.save()
+                '''admin_collection.update_one(
                     {
                         'phone_number': phone_number
                     },
@@ -163,8 +220,9 @@ class Overview(APIView):
                         }
                     },
                     upsert = False
-                )
-            open_session = admin_user_voting_code[code_index]['open_session']
+                )'''
+            open_session = voting_details['open_session']
+            
             #voters_max = len(admin_positions[0]['candidates'][0]['voters'])
             for voters in range(len(admin_positions[0]['candidates'])):
                 voters_count += len(admin_positions[0]['candidates'][voters]['voters'])
@@ -253,55 +311,47 @@ class ChangeSessionStatus(APIView):
                 status=status.HTTP_408_REQUEST_TIMEOUT
             )
         
-        code_index = 0
+        #code_index = 0
         if admin_user:
-            code = ''
-            for details in range(len(admin_user['voting_code'])):
-                code = admin_user['voting_code'][details]['code']
-                if voting_code == code:
-                    code_index = details
-                    break
-                else: continue
-            if code != voting_code:
-                return Response(
-                    {
-                        'status': 'Failed',
-                        'message': 'The code does not exist'
-                    },
-                    status=status.HTTP_406_NOT_ACCEPTABLE
-                )
-            
-            update_path = f"voting_code.{code_index}.open_session"
-            try:
-                admin_collection.update_one(
-                    {'phone_number': phone_number},
-                    {'$set': {update_path: status_data}},
-                    upsert=False
-                )
-                if status_data == True:
+            voting_session_details = VotingDB.objects.filter(voting_code=voting_code).first()
+            if voting_session_details:
+                try:
+                    voting_session_details.open_session = status_data
+                    #voting_session_serializer = VotingDBSerializer(voting_session_details)
+                    voting_session_details.save()
+                    if status_data == True:
+                        return Response(
+                            {
+                                'status': 'Passed',
+                                'message': 'Session is now open'
+                            },
+                            status=status.HTTP_202_ACCEPTED
+                        )
+                    else:
+                        return Response(
+                                {
+                                    'status': 'Passed',
+                                    'message': 'Session is now closed'
+                                },
+                                status=status.HTTP_202_ACCEPTED
+                            ) 
+                except Exception as e:
                     return Response(
                         {
-                            'status': 'Passed',
-                            'message': 'Session is now open'
+                            'status': 'Failed',
+                            'message': 'An error occured, please try again'
                         },
-                        status=status.HTTP_202_ACCEPTED
+                        status=status.HTTP_409_CONFLICT
                     )
-                else:
-                   return Response(
-                        {
-                            'status': 'Passed',
-                            'message': 'Session is now closed'
-                        },
-                        status=status.HTTP_202_ACCEPTED
-                    ) 
-            except Exception as e:
+            else:
                 return Response(
                     {
                         'status': 'Failed',
-                        'message': 'An error occured, please try again'
+                        'message': 'The voting code was not found'
                     },
-                    status=status.HTTP_409_CONFLICT
+                    status=status.HTTP_404_NOT_FOUND
                 )
+            #update_path = f"voting_code.{code_index}.open_session"
         else:
             return Response(
                 {

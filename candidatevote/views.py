@@ -8,13 +8,16 @@ from datetime import datetime as dt, timedelta, timezone
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
+from adminvote.models import *
+from adminvote.serializers import *
+
+
 
 class CandidateVote(APIView):
     def post(self, request, format=None, *args, **kwargs):
         load_dotenv()
         selected_data = request.data.get('selected_data')
         access_token = request.data.get('access_token')
-        admin_user_phone_number = request.data.get('referral_phone_number')
         voting_code = request.data.get('voting_code')
         
         decoded_token = jwt.decode(access_token, os.getenv('JWT_ENCODING_KEY'), algorithms=['HS256'])
@@ -42,83 +45,70 @@ class CandidateVote(APIView):
             return Response(
                 {
                     'status': 'Failed',
-                    'message': 'An error occurred, try again later'
+                    'message': 'An error occurred while checking for user, try again later'
                 },
                 status=status.HTTP_408_REQUEST_TIMEOUT
             )
         if candidate_user:
-            admin_collection = database['AdminUsers']
+            '''admin_collection = database['AdminUsers']
             admin_user = admin_collection.find_one(
                 {
                     'phone_number': admin_user_phone_number
                 }
-            )
-            code_index = 0
-            if admin_user:
-                code_for_voting = ''
-                voting_code_list = admin_user['voting_code']
-                for codes in range(len(voting_code_list)):
-                    if voting_code == voting_code_list[codes]['code']:
-                        code_for_voting = voting_code
-                        code_index = codes
-                        break
-                if code_for_voting != voting_code:
-                    return Response(
-                        {
-                            'status': 'Failed',
-                            'message': 'Code does not exist'
-                        },
-                        status=status.HTTP_404_NOT_FOUND
-                    )
-                if phone_number not in voting_code_list[code_index]['allowed_phone_numbers']:
-                    return Response(
-                        {
-                            'status': 'Failed',
-                            'message': 'You are not allowed to vote'
-                        },
-                        status=status.HTTP_405_METHOD_NOT_ALLOWED
-                    )
-                if phone_number in voting_code_list[code_index]['candidates_voted']:
-                    return Response(
-                        {
-                            'status': 'Failed',
-                            'message': 'You have already voted'
-                        },
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-                if voting_code_list[code_index]['open_session'] == False:
-                    return Response(
-                        {
-                            'status': 'Failed',
-                            'message': 'Voting session is closed right now'
-                        },
-                        status=status.HTTP_405_METHOD_NOT_ALLOWED
-                    )
-                positions = admin_user['voting_code'][code_index]['positions']
-                voted = False
-                for position in range(len(positions)):
-                    candidate_id = selected_data[position]
-                    # Find the candidate index based on the candidate ID
-                    candidate_index = next((index for index, candidate in enumerate(positions[position]['candidates']) if candidate['id'] == candidate_id), None)
-                    
-                    
-                    if candidate_index is not None:
-                        if phone_number not in voting_code_list[code_index]['candidates_voted']:
-                            update_path = f"voting_code.{code_index}.positions.{position}.candidates.{candidate_index}.voters"
-                            # Update the document
-                            admin_collection.update_one(
-                                {'phone_number': admin_user_phone_number},
-                                {'$push': {update_path: phone_number}},
-                                upsert=False
-                            )
-                            voted=True
-                voting_code_path = f"voting_code.{code_index}.candidates_voted"
-                if voted == True:    
-                    admin_collection.update_one(
-                        {'phone_number':  admin_user_phone_number},
-                        {'$push': {voting_code_path: phone_number}},
-                        upsert=False
-                    )
+            )'''
+            votingdb_session_details = VotingDB.objects.filter(voting_code=voting_code).first()
+            if votingdb_session_details:
+                voting_session_serializer_detail = VotingDBSerializer(votingdb_session_details)
+                voting_details = voting_session_serializer_detail.data
+            else:
+                return Response(
+                    {
+                        'status': 'Failed',
+                        'message': 'The voting code does not exist'
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            voting_code_list = voting_details['voting_code']
+            if phone_number not in voting_details['allowed_phone_numbers']:
+                return Response(
+                    {
+                        'status': 'Failed',
+                        'message': 'You are not allowed to vote'
+                    },
+                    status=status.HTTP_405_METHOD_NOT_ALLOWED
+                )
+            if phone_number in voting_details['candidates_voted']:
+                return Response(
+                    {
+                        'status': 'Failed',
+                        'message': 'You have already voted'
+                    },
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if voting_details['open_session'] == False:
+                return Response(
+                    {
+                        'status': 'Failed',
+                        'message': 'Voting session is closed right now'
+                    },
+                    status=status.HTTP_405_METHOD_NOT_ALLOWED
+                )
+            positions = voting_details['positions']
+            voted = False
+            for position in range(len(positions)):
+                candidate_id = selected_data[position]
+                # Find the candidate index based on the candidate ID
+                candidate_index = next((index for index, candidate in enumerate(positions[position]['candidates']) if candidate['id'] == candidate_id), None)
+                      
+                if candidate_index is not None:
+                    if phone_number not in voting_details['candidates_voted']:
+                        votingdb_session_details['positions'][position]['candidates'][candidate_index]['voters'].append(phone_number)
+                        votingdb_session_details.save()
+                        voted=True
+            #voting_code_path = f"voting_code.{code_index}.candidates_voted"
+            if voted == True:
+                votingdb_session_details['candidates_voted'].append(phone_number)
+                votingdb_session_details.save()
                 return Response(
                     {
                         'status': 'Passed',
